@@ -65,6 +65,23 @@ The model is designed to handle visual and textual inputs, combining them to pre
 
 The model integrates a reasoning evaluator, which assesses the strength of updates and their impact on visual entailment tasks. This allows for reward-driven optimization, improving model performance over time.
 
+### Model Link
+
+The pre-trained evaluator model can be downloaded from Hugging Face:
+
+➡ **[DVE Evaluator Model](https://huggingface.co/skywalkerzhang19/DVE_evaluator/resolve/main/evaluator_weights.pth?download=true)**
+
+You can also download it via `wget` or `curl`:
+
+```bash
+wget "https://huggingface.co/skywalkerzhang19/DVE_evaluator/resolve/main/evaluator_weights.pth?download=true" -O evaluator_weights.pth
+```
+or
+
+```bash
+curl -L "https://huggingface.co/skywalkerzhang19/DVE_evaluator/resolve/main/evaluator_weights.pth?download=true" -o evaluator_weights.pth
+```
+
 ## Evaluation
 To evaluate the model, use the following command:
 ```bash
