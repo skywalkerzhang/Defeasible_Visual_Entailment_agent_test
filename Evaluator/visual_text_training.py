@@ -164,17 +164,19 @@ class VisualEncoder(nn.Module):
 
 
 class BERTModelModule(nn.Module):
-    def __init__(self, model_name: str, use_classification_head=False):
+    def __init__(self, model_name: str, use_classification_head=False, classification_weight=0.9):
         super(BERTModelModule, self).__init__()
         self.bert_model = BertModel.from_pretrained(model_name)
         self.tokenizer = BertTokenizer.from_pretrained(model_name)
         self.use_classification_head = use_classification_head
+        self.classification_weight = classification_weight
         self.visual_encoder = VisualEncoder()
+
         if self.use_classification_head:
-            self.classifier = nn.Linear(self.bert_model.config.hidden_size + 2048, 2)  # 用于二分类任务
-            self.ce_loss_fn = nn.CrossEntropyLoss()  # 交叉熵损失函数
-        self.regressor = nn.Linear(self.bert_model.config.hidden_size + 2048, 1)  # 用于回归任务
-        self.custom_loss_fn = CustomLoss()
+            self.classifier = nn.Linear(self.bert_model.config.hidden_size + 2048, 2)
+            self.ce_loss_fn = nn.CrossEntropyLoss()
+
+        self.regressor = nn.Linear(self.bert_model.config.hidden_size + 2048, 1)
 
     def forward(self, images, input_ids, attention_mask):
         visual_features = self.visual_encoder(images)
@@ -189,42 +191,38 @@ class BERTModelModule(nn.Module):
         return logits, score
 
     def compute_loss_and_scores(self, batch, weight=classification_weight):
-        images, hypo_premise_inputs, hypo_update_inputs, update_types = batch
+        """
+        Compute the loss and scores for a batch of visual-text entailment data.
 
-        if hypo_premise_inputs and hypo_premise_inputs['input_ids'].numel() > 0:
-            # 获取文本和图像的特征并计算分类和回归分数
-            logits_hypo_premise, score_hypo_premise = self.forward(images, hypo_premise_inputs['input_ids'],
-                                                                   hypo_premise_inputs['attention_mask'])
-        else:
-            logits_hypo_premise = None
-            score_hypo_premise = None
+        Args:
+            batch: A tuple containing the following elements:
+                - images (torch.Tensor): Batch of images. Shape: (batch_size, 3, 224, 224).
+                - hypo_premise_inputs (Dict[str, torch.Tensor]): Tokenized hypothesis-premise pairs.
+                  Contains:
+                    * 'input_ids' (torch.Tensor): Tokenized input IDs. Shape: (batch_size, max_length).
+                    * 'attention_mask' (torch.Tensor): Attention mask. Shape: (batch_size, max_length).
+                  If no premise is provided, these tensors will be empty.
+                - hypo_update_inputs (Dict[str, torch.Tensor]): Tokenized hypothesis-update pairs.
+                  Contains:
+                    * 'input_ids' (torch.Tensor): Tokenized input IDs. Shape: (batch_size, max_length).
+                    * 'attention_mask' (torch.Tensor): Attention mask. Shape: (batch_size, max_length).
+                - update_types (torch.Tensor): Ground truth labels for the update effect.
+                  Shape: (batch_size,). Values: 1 (strengthener) or -1 (weakener).
 
-        # 获取文本和图像的特征并计算分类和回归分数
-        logits_hypo_update, score_hypo_update = self.forward(images, hypo_update_inputs['input_ids'],
-                                                             hypo_update_inputs['attention_mask'])
+            weight (float): The weight parameter for balancing classification and custom loss.
 
-        # 计算自定义损失
-        if hypo_premise_inputs and hypo_premise_inputs['input_ids'].numel() > 0:
-            custom_loss = self.custom_loss_fn(score_hypo_premise, score_hypo_update, update_types)
-        else:
-            custom_loss = None
-
-        if self.use_classification_head:
-            if logits_hypo_update is not None:
-                # 计算分类损失
-                update_types_classification = (update_types + 1) // 2  # 将 -1, 1 转换为 0, 1
-                ce_loss = self.ce_loss_fn(logits_hypo_update, update_types_classification.long())
-            else:
-                ce_loss = None
-            # 总损失
-            if custom_loss is not None and ce_loss is not None:
-                loss = weight * ce_loss + (1 - weight) * custom_loss
-            elif ce_loss is not None:
-                loss = ce_loss
-            else:
-                loss = custom_loss
-        else:
-            loss = custom_loss
+        Returns:
+            A tuple containing:
+                - loss (torch.Tensor): The computed loss for the batch. Shape: () (scalar).
+                - logits_hypo_premise (Optional[torch.Tensor]): Classification logits for hypothesis-premise pairs.
+                  Shape: (batch_size, 2) if `use_classification_head=True`, otherwise None.
+                - logits_hypo_update (Optional[torch.Tensor]): Classification logits for hypothesis-update pairs.
+                  Shape: (batch_size, 2) if `use_classification_head=True`, otherwise None.
+                - score_hypo_premise (Optional[torch.Tensor]): Regression scores for hypothesis-premise pairs.
+                  Shape: (batch_size, 1) if premises exist, otherwise None.
+                - score_hypo_update (torch.Tensor): Regression scores for hypothesis-update pairs.
+                  Shape: (batch_size, 1).
+        """
 
         return loss, logits_hypo_premise, logits_hypo_update, score_hypo_premise, score_hypo_update
 
@@ -252,7 +250,7 @@ def parse_args():
     parser.add_argument('--output_file', type=str, default='test_results.csv',
                         help='File to save the test results.')
     parser.add_argument('--gpu', type=int, default=7)
-    parser.add_argument('--classification_weight', action=float, help='The weight for classification loss.')
+    parser.add_argument('--classification_weight', type=float, help='The weight for classification loss.')
     parser.add_argument('--use_classification_head', action='store_true', help='Whether to use classification head.')
     return parser.parse_args()
 
@@ -434,7 +432,7 @@ def main():
 
     device = f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
     model_name = "bert-large-uncased"
-    model = BERTModelModule(model_name=model_name, use_classification_head=args.use_classification_head).to(device)
+    model = BERTModelModule(model_name=model_name, use_classification_head=args.use_classification_head, classification_weight=args.classification_weight).to(device)
 
     train_dataset = VisualTextDataset(train_image_paths, train_hypotheses, train_premises, train_updates, train_update_types, tokenizer, image_transform)
     val_dataset = VisualTextDataset(val_image_paths, val_hypotheses, val_premises, val_updates, val_update_types, tokenizer, image_transform)
@@ -458,5 +456,5 @@ def main():
 
 
 if __name__ == "__main__":
-    set_seed(42)
+    set_seed(99)
     main()
