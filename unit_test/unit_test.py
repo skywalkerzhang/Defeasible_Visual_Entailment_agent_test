@@ -33,7 +33,7 @@ class TestLossFunction(unittest.TestCase):
             batch)
 
         # 验证 loss 是否一致
-        self.assertTrue(torch.allclose(loss, self.test_data["loss"], atol=1e-6), "❌ Loss mismatch!")
+        self.assertTrue(torch.allclose(loss, self.test_data["loss"], atol=1e-6), "Loss mismatch!")
 
         # 验证 logits_hypo_premise 是否一致
         if logits_hypo_premise is not None and self.test_data["logits_hypo_premise"] is not None:
