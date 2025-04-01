@@ -2,7 +2,7 @@ import torch
 import unittest
 import argparse
 import os
-from model import BERTModelModule  # 注意确保这个 import 正确指向你的模型模块
+from Evaluator.visual_text_training import BERTModelModule  # 注意确保这个 import 正确指向你的模型模块
 
 
 class TestLossFunction(unittest.TestCase):
