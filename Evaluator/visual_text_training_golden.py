@@ -12,8 +12,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import LambdaLR
 import random
-from transformers import BertTokenizer, BertModel, BertConfig, AdamW
+from transformers import BertTokenizer, BertModel, BertConfig
 import math
+from torch.optim import AdamW
 
 
 class ClassificationHead(nn.Module):
@@ -239,25 +240,31 @@ class BERTModelModule(nn.Module):
         #     "logits_hypo_update": logits_hypo_update.cpu() if logits_hypo_update is not None else None,
         #     "score_hypo_premise": score_hypo_premise.cpu() if score_hypo_premise is not None else None,
         #     "score_hypo_update": score_hypo_update.cpu(),
-        #     "loss": loss.cpu()
+        #     "loss": loss.cpu(),
+        #     "visual_features": self.visual_encoder(images).detach().cpu()  # ✅ 必须保存 visual_features
         # }
-        #
-        # torch.save(save_data, "test_data_seed99.pt")
-        # print("Saved test data to test_data.pt")
-        # exit()
+        # torch.save(save_data, "test_data_seed42.pt")
+        # print("✅ Saved test data to test_data_seed42.pt")
+        # exit()  # 让程序只保存一次就退出
 
         return loss, logits_hypo_premise, logits_hypo_update, score_hypo_premise, score_hypo_update
+
+    def eval(self):
+        super().eval()
+        self.bert_model.eval()
+        self.visual_encoder.eval()
+        return self
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--train_csv_file', type=str, default='/home/lxj220018/clipscore/DVE_train.csv',
+    parser.add_argument('--train_csv_file', type=str, default='/home/yxz230014/Defeasible_Visual_Entailment_agent_test/Data/DVE_train.csv',
                         help='CSV file containing image paths, captions, and targets for training.')
-    parser.add_argument('--val_csv_file', type=str, default='/home/lxj220018/clipscore/DVE_dev.csv',
+    parser.add_argument('--val_csv_file', type=str, default='/home/yxz230014/Defeasible_Visual_Entailment_agent_test/Data/DVE_dev.csv',
                         help='CSV file containing image paths, captions, and targets for validation.')
-    parser.add_argument('--test_csv_file', type=str, default='/home/lxj220018/clipscore/DVE_test.csv',
+    parser.add_argument('--test_csv_file', type=str, default='/home/yxz230014/Defeasible_Visual_Entailment_agent_test/Data/DVE_test.csv',
                         help='CSV file containing image paths, captions, and targets for testing.')
-    parser.add_argument('--image_dir', type=str, default='/home/lxj220018/defeasible/defeasible-snli/flickr30k_images',
+    parser.add_argument('--image_dir', type=str, default='/home/yxz230014/Defeasible_Visual_Entailment_agent_test/Data/flickr30k_images',
                         help='Directory containing images.')
     parser.add_argument('--epochs', type=int, default=20, help='Number of epochs for fine-tuning.')
     parser.add_argument('--lr', type=float, default=5e-6, help='Learning rate for fine-tuning.')
@@ -271,7 +278,7 @@ def parse_args():
     parser.add_argument('--model_path', type=str, help='Path to the fine-tuned model checkpoint.')
     parser.add_argument('--output_file', type=str, default='test_results.csv',
                         help='File to save the test results.')
-    parser.add_argument('--gpu', type=int, default=7)
+    parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--classification_weight', type=float, help='The weight for classification loss.')
     parser.add_argument('--use_classification_head', action='store_true', help='Whether to use classification head.')
     return parser.parse_args()
@@ -478,5 +485,5 @@ def main():
 
 
 if __name__ == "__main__":
-    set_seed(99)
+    set_seed(42)
     main()
