@@ -13,7 +13,7 @@ sys.argv = [sys.argv[0]] + remaining_argv  # 只保留 unittest 支持的参数
 
 # ✅ 加载模型相关模块
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Evaluator')))
-from visual_text_training_golden import BERTModelModule, set_seed
+from visual_text_training import BERTModelModule, set_seed
 
 
 class TestLossFunction(unittest.TestCase):
